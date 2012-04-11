@@ -14,9 +14,14 @@ public class IPCapture extends PImage implements Runnable {
   private HttpURLConnection conn;
   private BufferedInputStream httpIn;
   private ByteArrayOutputStream jpgOut;
+  private volatile boolean keepAlive;
   
-  public final static String VERSION = "0.1.0";
+  public final static String VERSION = "0.2.0";
   
+  public IPCapture(PApplet parent) {
+    this(parent, "", "", "");
+  }
+
   public IPCapture(PApplet parent, String urlString, String user, String pass) {
     super();
     this.parent = parent;
@@ -26,26 +31,46 @@ public class IPCapture extends PImage implements Runnable {
     this.pass = pass;
     this.curFrame = new byte[0];
     this.frameAvailable = false;
-    this.streamReader = new Thread(this, "HTTP Stream reader");
+    this.keepAlive = false;
   }
   
+  public boolean isAlive() {
+    return streamReader.isAlive();
+  }
+
   public boolean isAvailable() {
     return frameAvailable;
   }
   
   public void start() {
+    if (streamReader != null && streamReader.isAlive()) {
+      System.out.println("Camera already started");
+      return;
+    }
+    streamReader = new Thread(this, "HTTP Stream reader");
+    keepAlive = true;
     streamReader.start();
   }
   
+  public void start(String urlString, String user, String pass) {
+    this.urlString = urlString;
+    this.user = user;
+    this.pass = pass;
+    this.start();
+  }
+
   public void stop() {
+    if (streamReader == null || !streamReader.isAlive()) {
+      System.out.println("Camera already stopped");
+      return;
+    }
+    keepAlive = false;
     try {
-      jpgOut.close();
-      httpIn.close();
+      streamReader.join();
     }
-    catch (IOException e) {
-      System.err.println("Error closing streams: " + e.getMessage());
+    catch (InterruptedException e) {
+      System.err.println(e.getMessage());
     }
-    conn.disconnect();
   }
   
   public void dispose() {
@@ -78,7 +103,7 @@ public class IPCapture extends PImage implements Runnable {
     int cur = 0;
     
     try {
-      while (httpIn != null && (cur = httpIn.read()) >= 0) {
+      while (keepAlive && (cur = httpIn.read()) >= 0) {
         if (prev == 0xFF && cur == 0xD8) {
           jpgOut = new ByteArrayOutputStream(8192);
           jpgOut.write((byte)prev);
@@ -99,6 +124,14 @@ public class IPCapture extends PImage implements Runnable {
     catch (IOException e) {
       System.err.println("I/O Error: " + e.getMessage());
     }
+    try {
+      jpgOut.close();
+      httpIn.close();
+    }
+    catch (IOException e) {
+      System.err.println("Error closing streams: " + e.getMessage());
+    }
+    conn.disconnect();
   }
   
   public void read() {
