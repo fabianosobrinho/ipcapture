@@ -9,6 +9,7 @@ public class IPCapture extends PImage implements Runnable {
   private PApplet parent;
   private String urlString, user, pass;
   private byte[] curFrame;
+  private boolean frameStarted;
   private boolean frameAvailable;
   private Thread streamReader;
   private HttpURLConnection conn;
@@ -16,7 +17,7 @@ public class IPCapture extends PImage implements Runnable {
   private ByteArrayOutputStream jpgOut;
   private volatile boolean keepAlive;
   
-  public final static String VERSION = "0.2.0";
+  public final static String VERSION = "0.2.1";
   
   public IPCapture(PApplet parent) {
     this(parent, "", "", "");
@@ -25,11 +26,12 @@ public class IPCapture extends PImage implements Runnable {
   public IPCapture(PApplet parent, String urlString, String user, String pass) {
     super();
     this.parent = parent;
-    parent.registerDispose(this);
+    parent.registerMethod("dispose", this);
     this.urlString = urlString;
     this.user = user;
     this.pass = pass;
     this.curFrame = new byte[0];
+    this.frameStarted = false;
     this.frameAvailable = false;
     this.keepAlive = false;
   }
@@ -92,31 +94,38 @@ public class IPCapture extends PImage implements Runnable {
     try {
       conn = (HttpURLConnection)url.openConnection();
       conn.setRequestProperty("Authorization", "Basic " + base64.encode(user + ":" + pass));
-      httpIn = new BufferedInputStream(conn.getInputStream(), 8192);
     }
     catch (IOException e) {
       System.err.println("Unable to connect: " + e.getMessage());
       return;
     }
-    
+    try {
+      httpIn = new BufferedInputStream(conn.getInputStream(), 8192);
+      jpgOut = new ByteArrayOutputStream(8192);
+    }
+    catch (IOException e) {
+      System.err.println("Unable to open I/O streams: " + e.getMessage());
+      return;
+    }
+
     int prev = 0;
     int cur = 0;
     
     try {
       while (keepAlive && (cur = httpIn.read()) >= 0) {
         if (prev == 0xFF && cur == 0xD8) {
+          frameStarted = true;
+          jpgOut.close();
           jpgOut = new ByteArrayOutputStream(8192);
           jpgOut.write((byte)prev);
         }
-        if (jpgOut != null) {
+        if (frameStarted) {
           jpgOut.write((byte)cur);
-        }
-        if (prev == 0xFF && cur == 0xD9) {
-          synchronized(curFrame) {
+          if (prev == 0xFF && cur == 0xD9) {
             curFrame = jpgOut.toByteArray();
+            frameStarted = false;
+            frameAvailable = true;
           }
-          frameAvailable = true;
-          jpgOut.close();
         }
         prev = cur;
       }
@@ -129,27 +138,34 @@ public class IPCapture extends PImage implements Runnable {
       httpIn.close();
     }
     catch (IOException e) {
-      System.err.println("Error closing streams: " + e.getMessage());
+      System.err.println("Error closing I/O streams: " + e.getMessage());
     }
     conn.disconnect();
   }
   
   public void read() {
+    ByteArrayInputStream jpgIn;
+    BufferedImage bufImg;
     try {
-      ByteArrayInputStream jpgIn = new ByteArrayInputStream(curFrame);
-      BufferedImage bufImg = ImageIO.read(jpgIn);
+      jpgIn = new ByteArrayInputStream(curFrame);
+      bufImg = ImageIO.read(jpgIn);
       jpgIn.close();
-      int w = bufImg.getWidth();
-      int h = bufImg.getHeight();
-      if (w != this.width || h != this.height) {
-        this.resize(bufImg.getWidth(),bufImg.getHeight());
-      }
-      bufImg.getRGB(0, 0, w, h, this.pixels, 0, w);
-      this.updatePixels();
-      frameAvailable = false;
     }
     catch (IOException e) {
       System.err.println("Error acquiring the frame: " + e.getMessage());
+      frameAvailable = false;
+      return;
     }
+    int w = bufImg.getWidth();
+    int h = bufImg.getHeight();
+    if (w != this.width || h != this.height) {
+      System.out.println("New frame size: " + w + "x" + h);
+      this.width = w;
+      this.height = h;
+      this.pixels = new int[w*h];
+    }
+    bufImg.getRGB(0, 0, w, h, this.pixels, 0, w);
+    this.updatePixels();
+    frameAvailable = false;
   }
 }

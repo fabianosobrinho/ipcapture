@@ -4,7 +4,7 @@ IPCapture cam;
 
 void setup() {
   size(640,480);
-  cam = new IPCapture(this, "url", "username", "password");
+  cam = new IPCapture(this, "http://212.219.113.227/axis-cgi/mjpg/video.cgi", "", "");
   cam.start();
   
   // this works as well:
