@@ -3,7 +3,7 @@ import java.net.*;
 import java.io.*;
 //import javax.imageio.ImageIO;
 //import java.awt.image.BufferedImage;
-import android.graphics.BufferedImage;
+import android.graphics.BitmapFactory;
 import android.graphics.Bitmap;
 import processing.core.*;
 
