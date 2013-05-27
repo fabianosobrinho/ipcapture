@@ -1,8 +1,10 @@
 package ipcapture;
 import java.net.*;
 import java.io.*;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
+//import javax.imageio.ImageIO;
+//import java.awt.image.BufferedImage;
+import android.graphics.BufferedImage;
+import android.graphics.Bitmap;
 import processing.core.*;
 
 public class IPCapture extends PImage implements Runnable {
@@ -145,10 +147,12 @@ public class IPCapture extends PImage implements Runnable {
   
   public void read() {
     ByteArrayInputStream jpgIn;
-    BufferedImage bufImg;
+    // BufferedImage bufImg;
+    Bitmap bufImg;
     try {
       jpgIn = new ByteArrayInputStream(curFrame);
-      bufImg = ImageIO.read(jpgIn);
+      //bufImg = ImageIO.read(jpgIn);
+      bufImg = BitmapFactory.decodeStream(jpgIn);
       jpgIn.close();
     }
     catch (IOException e) {
@@ -164,7 +168,8 @@ public class IPCapture extends PImage implements Runnable {
       this.height = h;
       this.pixels = new int[w*h];
     }
-    bufImg.getRGB(0, 0, w, h, this.pixels, 0, w);
+    //bufImg.getRGB(0, 0, w, h, this.pixels, 0, w);
+    bufImg.getPixels(this.pixels, 0, w, 0, 0, w, h);
     this.updatePixels();
     frameAvailable = false;
   }
