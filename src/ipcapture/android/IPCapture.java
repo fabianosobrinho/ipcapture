@@ -1,4 +1,7 @@
-package ipcapture;
+package ipcapture.android;
+
+import ipcapture.Base64Encoder;
+
 import java.net.*;
 import java.io.*;
 //import javax.imageio.ImageIO;
